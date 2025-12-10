@@ -1,0 +1,148 @@
+# Implementation Plan
+
+- [x] 1. Project Setup and IWSDK Configuration
+  - [x] 1.1 Initialize IWSDK project with TypeScript and VR mode
+    - Run `npx @meta-quest/immersive-web-sdk-cli create` with VR mode and grabbing enabled
+    - Configure TypeScript settings
+    - _Requirements: 1.1, 1.2_
+  - [x] 1.2 Set up development environment for Chrome WebXR Emulator
+    - Add instructions for installing WebXR API Emulator extension
+    - Configure dev server for local testing
+    - Verify "Enter VR" button works with emulator
+    - _Requirements: 1.3_
+  - [x] 1.3 Create shared types and constants
+    - Define RoomTheme type and ROOM_THEMES configuration object
+    - Define Player and Song interfaces
+    - _Requirements: 2.1, 2.2_
+
+- [x] 2. Backend API Setup
+  - [x] 2.1 Initialize Express server with TypeScript
+    - Create server directory structure
+    - Set up Express with CORS enabled
+    - Add basic health check endpoint
+    - _Requirements: 6.1_
+  - [x] 2.2 Set up PostgreSQL database connection
+    - Create database connection module using pg library
+    - Add environment variable configuration for DB credentials
+    - _Requirements: 6.1_
+  - [x] 2.3 Create database schema and migrations
+    - Create players table (id, display_name, created_at, last_active)
+    - Create songs table (id, youtube_id, title, artist, theme)
+    - Add seed data for curated karaoke songs per theme
+    - _Requirements: 7.1, 7.2_
+  - [x] 2.4 Implement Profile API endpoints
+    - POST /api/profiles - Create new profile with display name validation (3-20 chars)
+    - GET /api/profiles/:id - Get profile by ID
+    - PUT /api/profiles/:id - Update profile
+    - Return appropriate error responses for invalid requests
+    - _Requirements: 5.2, 6.2, 6.3, 6.4, 7.3, 7.4_
+  - [x] 2.5 Implement Songs API endpoints
+    - GET /api/songs - List songs, optionally filtered by theme
+    - GET /api/songs/search?q=query - Search songs by title or artist
+    - _Requirements: 4.2_
+
+- [x] 3. Checkpoint - Backend API Working
+  - Ensure backend starts and connects to database
+  - Test API endpoints with curl or Postman
+  - Ask the user if questions arise
+
+- [x] 4. Frontend Core Setup
+  - [x] 4.1 Configure IWSDK app entry point
+    - Set up WebXR session initialization
+    - Configure controller input handling
+    - Create main render loop
+    - _Requirements: 1.2, 1.3_
+  - [x] 4.2 Create Scene Manager
+    - Implement loadRoom() and unloadCurrentRoom() methods
+    - Handle scene transitions
+    - _Requirements: 2.2, 2.3_
+  - [x] 4.3 Implement Profile Service
+    - Create API client for profile endpoints
+    - Add local storage caching for profile ID
+    - _Requirements: 5.3, 5.4_
+
+- [x] 5. Themed Room System
+  - [x] 5.1 Create base ThemedRoom class
+    - Define room geometry (floor, walls, ceiling)
+    - Set up lighting based on theme config
+    - Position spawn point and screen location
+    - _Requirements: 2.2, 2.3_
+  - [x] 5.2 Implement all 5 themed room variants
+    - Anime Tokyo Lounge (pink/magenta theme)
+    - K-pop Seoul Studio (purple theme)
+    - Bollywood Mumbai Rooftop (orange/gold theme)
+    - Hollywood LA Concert Hall (blue theme)
+    - Taylor Swift Broadway Stage (pink/purple theme)
+    - _Requirements: 2.1, 2.2_
+
+- [x] 6. Microphone Entity
+  - [x] 6.1 Create grabbable Microphone entity
+    - Create 3D microphone mesh (cylinder + sphere)
+    - Configure as grabbable object in IWSDK
+    - Set spawn position relative to player
+    - _Requirements: 3.1_
+  - [x] 6.2 Implement grab and release behavior
+    - Handle controller trigger press for grab
+    - Attach microphone to controller when grabbed
+    - Return to spawn position on release
+    - _Requirements: 3.2, 3.3_
+  - [x] 6.3 Add visual feedback for grab state
+    - Change microphone color when held (e.g., glow effect)
+    - Reset color on release
+    - _Requirements: 3.4_
+
+- [x] 7. Video Screen and YouTube Integration
+  - [x] 7.1 Create VideoScreen entity
+    - Create 3D plane for video display
+    - Position screen facing player spawn point
+    - _Requirements: 4.3_
+  - [x] 7.2 Implement YouTube iframe embedding
+    - Load YouTube video by ID into screen
+    - Handle play/pause/stop controls
+    - Ensure audio plays in VR environment
+    - _Requirements: 4.3, 4.4_
+
+- [x] 8. VR User Interface
+  - [x] 8.1 Create UI panel system
+    - Implement 3D panel rendering in VR space
+    - Position panels at comfortable viewing distance
+    - _Requirements: 8.1_
+  - [x] 8.2 Implement controller-based UI interaction
+    - Add ray casting from controller for pointing
+    - Highlight elements on hover
+    - Trigger actions on trigger press
+    - _Requirements: 8.2, 8.3_
+  - [x] 8.3 Create Room Selection panel
+    - Display 5 themed room buttons
+    - Handle room selection and loading
+    - _Requirements: 2.1_
+  - [x] 8.4 Create Song Search panel
+    - Add search input field
+    - Display song list from API
+    - Handle song selection to play video
+    - Add stop/back controls
+    - _Requirements: 4.1, 4.2, 4.5_
+  - [x] 8.5 Create Profile Name input
+    - Display name prompt for new users
+    - Add virtual keyboard for text input
+    - Validate and save profile
+    - _Requirements: 5.1, 5.2, 8.4_
+
+- [x] 9. Integration and Flow
+  - [x] 9.1 Wire up complete user flow
+    - App start → Profile check/create → Room selection → Enter room → Song selection → Sing
+    - Handle navigation between screens
+    - _Requirements: All_
+  - [x] 9.2 Add error handling and loading states
+    - Show loading indicators during API calls
+    - Display error messages for failures
+    - Handle WebXR session errors gracefully
+    - _Requirements: 6.4_
+
+- [x] 10. Final Checkpoint - Full App Working
+  - Test complete flow in Chrome with WebXR Emulator
+  - Verify all 5 rooms load correctly
+  - Verify microphone grab/release works
+  - Verify song search and playback works
+  - Verify profile saves and restores
+  - Ask the user if questions arise
