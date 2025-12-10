@@ -114,8 +114,8 @@ export class ErrorDisplay {
   private createTitle(): void {
     const titleMesh = this.createTextMesh(
       'Error',
-      ERROR_CONFIG.panelWidth * 100,
-      30,
+      ERROR_CONFIG.panelWidth,
+      0.03,
       { fontSize: 18, color: ERROR_CONFIG.errorColor }
     );
     titleMesh.position.set(0, ERROR_CONFIG.panelHeight / 2 - 0.06, 0.01);
@@ -166,8 +166,8 @@ export class ErrorDisplay {
     // Add label
     const labelMesh = this.createTextMesh(
       label,
-      ERROR_CONFIG.buttonWidth * 100,
-      ERROR_CONFIG.buttonHeight * 100,
+      ERROR_CONFIG.buttonWidth,
+      ERROR_CONFIG.buttonHeight,
       { fontSize: 12, color: '#ffffff' }
     );
     labelMesh.position.set(0, 0, 0.001);
@@ -178,6 +178,7 @@ export class ErrorDisplay {
 
   /**
    * Create a text mesh using canvas
+   * Note: width and height are in meters (3D space units)
    */
   private createTextMesh(
     text: string,
@@ -185,22 +186,51 @@ export class ErrorDisplay {
     height: number,
     options: { fontSize: number; color: string }
   ): Mesh {
-    const scale = 2;
-    this.canvas.width = width * scale;
-    this.canvas.height = height * scale;
+    // Create a new canvas for each text mesh to avoid conflicts
+    const canvas = document.createElement('canvas');
+    const scale = 4; // High resolution for crisp text
     
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.font = `${options.fontSize * scale}px Arial, sans-serif`;
-    this.ctx.fillStyle = options.color;
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(text, this.canvas.width / 2, this.canvas.height / 2);
+    // Convert meters to pixels (1 meter = 100 pixels at scale)
+    const pixelWidth = Math.max(256, Math.round(width * scale * 100));
+    const pixelHeight = Math.max(64, Math.round(height * scale * 100));
     
-    const texture = new CanvasTexture(this.canvas);
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+    
+    const ctx = canvas.getContext('2d')!;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Set font with proper scaling
+    const scaledFontSize = options.fontSize * scale;
+    ctx.font = `bold ${scaledFontSize}px Arial, sans-serif`;
+    ctx.fillStyle = options.color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Measure text to ensure it fits
+    const metrics = ctx.measureText(text);
+    const maxWidth = canvas.width * 0.9; // Leave 10% padding
+    
+    // Draw text, truncate if necessary
+    let displayText = text;
+    if (metrics.width > maxWidth) {
+      // Truncate text with ellipsis
+      while (ctx.measureText(displayText + '...').width > maxWidth && displayText.length > 0) {
+        displayText = displayText.slice(0, -1);
+      }
+      displayText += '...';
+    }
+    
+    ctx.fillText(displayText, canvas.width / 2, canvas.height / 2, maxWidth);
+    
+    const texture = new CanvasTexture(canvas);
     texture.needsUpdate = true;
     
     const material = new MeshBasicMaterial({ map: texture, transparent: true });
-    const geometry = new PlaneGeometry(width / 100, height / 100);
+    // Geometry size is in meters (3D space units)
+    const geometry = new PlaneGeometry(width, height);
     return new Mesh(geometry, material);
   }
 
@@ -222,8 +252,8 @@ export class ErrorDisplay {
     
     this.messageMesh = this.createTextMesh(
       displayMessage,
-      ERROR_CONFIG.panelWidth * 100 - 20,
-      40,
+      ERROR_CONFIG.panelWidth * 0.9,
+      0.04,
       { fontSize: 14, color: ERROR_CONFIG.textColor }
     );
     this.messageMesh.position.set(0, 0.02, 0.01);

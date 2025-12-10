@@ -113,11 +113,29 @@ export class ProfileInputPanel {
 
     // Clear and redraw canvas
     this.inputCtx.clearRect(0, 0, this.inputCanvas.width, this.inputCanvas.height);
-    this.inputCtx.font = 'bold 48px Arial, sans-serif';
+    
+    // Set font with proper size
+    const fontSize = 48;
+    this.inputCtx.font = `bold ${fontSize}px Arial, sans-serif`;
     this.inputCtx.fillStyle = textColor;
     this.inputCtx.textAlign = 'center';
     this.inputCtx.textBaseline = 'middle';
-    this.inputCtx.fillText(displayText, this.inputCanvas.width / 2, this.inputCanvas.height / 2);
+    
+    // Measure text to ensure it fits
+    const metrics = this.inputCtx.measureText(displayText);
+    const maxWidth = this.inputCanvas.width * 0.9; // Leave 10% padding
+    
+    // Draw text, truncate if necessary
+    let textToDisplay = displayText;
+    if (metrics.width > maxWidth) {
+      // Truncate text with ellipsis
+      while (this.inputCtx.measureText(textToDisplay + '...').width > maxWidth && textToDisplay.length > 0) {
+        textToDisplay = textToDisplay.slice(0, -1);
+      }
+      textToDisplay += '...';
+    }
+    
+    this.inputCtx.fillText(textToDisplay, this.inputCanvas.width / 2, this.inputCanvas.height / 2, maxWidth);
 
     // Update texture
     if (this.inputTexture) {
@@ -166,18 +184,42 @@ export class ProfileInputPanel {
     fontSize: number,
     textColor: string
   ): Mesh {
+    // Create a new canvas for each text mesh to avoid conflicts
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = Math.round((meshHeight / meshWidth) * 512);
+    const scale = 4; // High resolution for crisp text
+    canvas.width = Math.max(512, Math.round(meshWidth * scale * 100));
+    canvas.height = Math.max(128, Math.round(meshHeight * scale * 100));
     
     const ctx = canvas.getContext('2d')!;
-    ctx.font = `bold ${fontSize * 4}px Arial, sans-serif`;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Set font with proper scaling
+    const scaledFontSize = fontSize * scale;
+    ctx.font = `bold ${scaledFontSize}px Arial, sans-serif`;
     ctx.fillStyle = textColor;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    
+    // Measure text to ensure it fits
+    const metrics = ctx.measureText(text);
+    const maxWidth = canvas.width * 0.9; // Leave 10% padding
+    
+    // Draw text, truncate if necessary
+    let displayText = text;
+    if (metrics.width > maxWidth) {
+      // Truncate text with ellipsis
+      while (ctx.measureText(displayText + '...').width > maxWidth && displayText.length > 0) {
+        displayText = displayText.slice(0, -1);
+      }
+      displayText += '...';
+    }
+    
+    ctx.fillText(displayText, canvas.width / 2, canvas.height / 2, maxWidth);
 
     const texture = new CanvasTexture(canvas);
+    texture.needsUpdate = true;
     const material = new MeshBasicMaterial({ map: texture, transparent: true });
     const geometry = new PlaneGeometry(meshWidth, meshHeight);
     return new Mesh(geometry, material);

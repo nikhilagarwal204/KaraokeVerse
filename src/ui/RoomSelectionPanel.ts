@@ -75,8 +75,8 @@ export class RoomSelectionPanel {
     // Create title
     const titleMesh = this.createTextMesh(
       'Select a Room',
-      PANEL_CONFIG.width * 100,
-      PANEL_CONFIG.titleHeight * 100,
+      PANEL_CONFIG.width,
+      PANEL_CONFIG.titleHeight,
       { fontSize: 28, color: '#ffffff', backgroundColor: 'transparent' }
     );
     titleMesh.position.set(0, (PANEL_CONFIG.height / 2) - PANEL_CONFIG.titleHeight, 0.02);
@@ -121,8 +121,8 @@ export class RoomSelectionPanel {
     // Add text label
     const labelMesh = this.createTextMesh(
       config.displayName,
-      PANEL_CONFIG.buttonWidth * 100,
-      PANEL_CONFIG.buttonHeight * 100,
+      PANEL_CONFIG.buttonWidth,
+      PANEL_CONFIG.buttonHeight,
       { fontSize: 18, color: '#ffffff', backgroundColor: 'transparent' }
     );
     labelMesh.position.set(0, 0, 0.001);
@@ -156,6 +156,7 @@ export class RoomSelectionPanel {
 
   /**
    * Create a text mesh using canvas
+   * Note: width and height are in meters (3D space units)
    */
   private createTextMesh(
     text: string,
@@ -163,31 +164,57 @@ export class RoomSelectionPanel {
     height: number,
     options: { fontSize: number; color: string; backgroundColor: string }
   ): Mesh {
-    const scale = 2;
-    this.canvas.width = width * scale;
-    this.canvas.height = height * scale;
+    // Create a new canvas for each text mesh to avoid conflicts
+    const canvas = document.createElement('canvas');
+    const scale = 4; // High resolution for crisp text
+    
+    // Convert meters to pixels (1 meter = 100 pixels at scale)
+    const pixelWidth = Math.max(256, Math.round(width * scale * 100));
+    const pixelHeight = Math.max(64, Math.round(height * scale * 100));
+    
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+    
+    const ctx = canvas.getContext('2d')!;
 
     // Clear or fill background
     if (options.backgroundColor !== 'transparent') {
-      this.ctx.fillStyle = options.backgroundColor;
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.fillStyle = options.backgroundColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     } else {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    // Draw text
-    this.ctx.font = `${options.fontSize * scale}px Arial, sans-serif`;
-    this.ctx.fillStyle = options.color;
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(text, this.canvas.width / 2, this.canvas.height / 2);
+    // Set font with proper scaling
+    const scaledFontSize = options.fontSize * scale;
+    ctx.font = `bold ${scaledFontSize}px Arial, sans-serif`;
+    ctx.fillStyle = options.color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Measure text to ensure it fits
+    const metrics = ctx.measureText(text);
+    const maxWidth = canvas.width * 0.9; // Leave 10% padding
+    
+    // Draw text, truncate if necessary
+    let displayText = text;
+    if (metrics.width > maxWidth) {
+      // Truncate text with ellipsis
+      while (ctx.measureText(displayText + '...').width > maxWidth && displayText.length > 0) {
+        displayText = displayText.slice(0, -1);
+      }
+      displayText += '...';
+    }
+    
+    ctx.fillText(displayText, canvas.width / 2, canvas.height / 2, maxWidth);
 
     // Create texture and mesh
-    const texture = new CanvasTexture(this.canvas);
+    const texture = new CanvasTexture(canvas);
     texture.needsUpdate = true;
 
     const material = new MeshBasicMaterial({ map: texture, transparent: true });
-    const geometry = new PlaneGeometry(width / 100, height / 100);
+    // Geometry size is in meters (3D space units)
+    const geometry = new PlaneGeometry(width, height);
     const mesh = new Mesh(geometry, material);
 
     return mesh;

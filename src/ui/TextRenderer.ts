@@ -49,6 +49,7 @@ export class TextRenderer {
 
   /**
    * Create a text mesh with the given text and options
+   * Note: width and height are in meters (3D space units)
    */
   createTextMesh(
     text: string,
@@ -58,35 +59,58 @@ export class TextRenderer {
   ): { mesh: Mesh; material: MeshBasicMaterial; texture: CanvasTexture } {
     const opts = { ...DEFAULT_OPTIONS, ...options };
 
-    // Set canvas size (use higher resolution for crisp text)
-    const scale = 2;
-    this.canvas.width = width * scale;
-    this.canvas.height = height * scale;
+    // Create a new canvas for each text mesh to avoid conflicts
+    const canvas = document.createElement('canvas');
+    const scale = 4; // High resolution for crisp text
+    
+    // Convert meters to pixels (1 meter = 100 pixels at scale)
+    const pixelWidth = Math.max(256, Math.round(width * scale * 100));
+    const pixelHeight = Math.max(64, Math.round(height * scale * 100));
+    
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+    
+    const ctx = canvas.getContext('2d')!;
 
     // Clear canvas
     if (opts.backgroundColor !== 'transparent') {
-      this.ctx.fillStyle = opts.backgroundColor;
-      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.fillStyle = opts.backgroundColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     } else {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
     // Set text properties
-    this.ctx.font = `${opts.fontSize * scale}px ${opts.fontFamily}`;
-    this.ctx.fillStyle = opts.color;
-    this.ctx.textAlign = opts.textAlign;
-    this.ctx.textBaseline = 'middle';
+    const scaledFontSize = opts.fontSize * scale;
+    ctx.font = `${scaledFontSize}px ${opts.fontFamily}`;
+    ctx.fillStyle = opts.color;
+    ctx.textAlign = opts.textAlign;
+    ctx.textBaseline = 'middle';
 
     // Draw text
-    const x = opts.textAlign === 'center' ? this.canvas.width / 2 :
-              opts.textAlign === 'right' ? this.canvas.width - opts.padding * scale :
+    const x = opts.textAlign === 'center' ? canvas.width / 2 :
+              opts.textAlign === 'right' ? canvas.width - opts.padding * scale :
               opts.padding * scale;
-    const y = this.canvas.height / 2;
+    const y = canvas.height / 2;
 
-    this.ctx.fillText(text, x, y, opts.maxWidth * scale);
+    // Measure text to ensure it fits
+    const metrics = ctx.measureText(text);
+    const maxWidth = opts.maxWidth ? opts.maxWidth * scale : canvas.width * 0.9;
+    
+    // Draw text, truncate if necessary
+    let displayText = text;
+    if (metrics.width > maxWidth) {
+      // Truncate text with ellipsis
+      while (ctx.measureText(displayText + '...').width > maxWidth && displayText.length > 0) {
+        displayText = displayText.slice(0, -1);
+      }
+      displayText += '...';
+    }
+
+    ctx.fillText(displayText, x, y, maxWidth);
 
     // Create texture from canvas
-    const texture = new CanvasTexture(this.canvas);
+    const texture = new CanvasTexture(canvas);
     texture.needsUpdate = true;
 
     // Create material and mesh
@@ -95,7 +119,8 @@ export class TextRenderer {
       transparent: true,
     });
 
-    const geometry = new PlaneGeometry(width / 100, height / 100);
+    // Geometry size is in meters (3D space units)
+    const geometry = new PlaneGeometry(width, height);
     const mesh = new Mesh(geometry, material);
     mesh.name = `text-${text.substring(0, 10)}`;
 
@@ -104,6 +129,7 @@ export class TextRenderer {
 
   /**
    * Update text on an existing texture
+   * Note: width and height are in meters (3D space units)
    */
   updateText(
     texture: CanvasTexture,
@@ -113,10 +139,14 @@ export class TextRenderer {
     options: TextOptions = {}
   ): void {
     const opts = { ...DEFAULT_OPTIONS, ...options };
-    const scale = 2;
+    const scale = 4;
 
-    this.canvas.width = width * scale;
-    this.canvas.height = height * scale;
+    // Convert meters to pixels (1 meter = 100 pixels at scale)
+    const pixelWidth = Math.max(256, Math.round(width * scale * 100));
+    const pixelHeight = Math.max(64, Math.round(height * scale * 100));
+
+    this.canvas.width = pixelWidth;
+    this.canvas.height = pixelHeight;
 
     if (opts.backgroundColor !== 'transparent') {
       this.ctx.fillStyle = opts.backgroundColor;
@@ -125,7 +155,8 @@ export class TextRenderer {
       this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     }
 
-    this.ctx.font = `${opts.fontSize * scale}px ${opts.fontFamily}`;
+    const scaledFontSize = opts.fontSize * scale;
+    this.ctx.font = `${scaledFontSize}px ${opts.fontFamily}`;
     this.ctx.fillStyle = opts.color;
     this.ctx.textAlign = opts.textAlign;
     this.ctx.textBaseline = 'middle';
@@ -135,7 +166,21 @@ export class TextRenderer {
               opts.padding * scale;
     const y = this.canvas.height / 2;
 
-    this.ctx.fillText(text, x, y, opts.maxWidth * scale);
+    // Measure text to ensure it fits
+    const metrics = this.ctx.measureText(text);
+    const maxWidth = opts.maxWidth ? opts.maxWidth * scale : this.canvas.width * 0.9;
+    
+    // Draw text, truncate if necessary
+    let displayText = text;
+    if (metrics.width > maxWidth) {
+      // Truncate text with ellipsis
+      while (this.ctx.measureText(displayText + '...').width > maxWidth && displayText.length > 0) {
+        displayText = displayText.slice(0, -1);
+      }
+      displayText += '...';
+    }
+
+    this.ctx.fillText(displayText, x, y, maxWidth);
     texture.needsUpdate = true;
   }
 

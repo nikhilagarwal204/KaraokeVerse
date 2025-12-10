@@ -103,25 +103,56 @@ export class LoadingIndicator {
    * Create a text mesh using canvas
    */
   private createTextMesh(text: string): Mesh {
-    const width = LOADING_CONFIG.panelWidth * 100;
-    const height = 30;
-    const scale = 2;
+    // Create a new canvas for each text mesh to avoid conflicts
+    const canvas = document.createElement('canvas');
+    const scale = 4; // High resolution for crisp text
     
-    this.canvas.width = width * scale;
-    this.canvas.height = height * scale;
+    // Text dimensions in meters (3D space units)
+    const width = LOADING_CONFIG.panelWidth * 0.9; // Leave some padding
+    const height = 0.03;
     
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.font = `${14 * scale}px Arial, sans-serif`;
-    this.ctx.fillStyle = LOADING_CONFIG.textColor;
-    this.ctx.textAlign = 'center';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(text, this.canvas.width / 2, this.canvas.height / 2);
+    // Convert meters to pixels (1 meter = 100 pixels at scale)
+    const pixelWidth = Math.max(256, Math.round(width * scale * 100));
+    const pixelHeight = Math.max(64, Math.round(height * scale * 100));
     
-    const texture = new CanvasTexture(this.canvas);
+    canvas.width = pixelWidth;
+    canvas.height = pixelHeight;
+    
+    const ctx = canvas.getContext('2d')!;
+    
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Set font with proper scaling
+    const fontSize = 14;
+    const scaledFontSize = fontSize * scale;
+    ctx.font = `bold ${scaledFontSize}px Arial, sans-serif`;
+    ctx.fillStyle = LOADING_CONFIG.textColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Measure text to ensure it fits
+    const metrics = ctx.measureText(text);
+    const maxWidth = canvas.width * 0.9; // Leave 10% padding
+    
+    // Draw text, truncate if necessary
+    let displayText = text;
+    if (metrics.width > maxWidth) {
+      // Truncate text with ellipsis
+      while (ctx.measureText(displayText + '...').width > maxWidth && displayText.length > 0) {
+        displayText = displayText.slice(0, -1);
+      }
+      displayText += '...';
+    }
+    
+    ctx.fillText(displayText, canvas.width / 2, canvas.height / 2, maxWidth);
+    
+    const texture = new CanvasTexture(canvas);
     texture.needsUpdate = true;
     
     const material = new MeshBasicMaterial({ map: texture, transparent: true });
-    const geometry = new PlaneGeometry(width / 100, height / 100);
+    // Geometry size is in meters (3D space units)
+    const geometry = new PlaneGeometry(width, height);
     const mesh = new Mesh(geometry, material);
     mesh.position.set(0, -0.06, 0.01);
     return mesh;
