@@ -8,7 +8,7 @@
 
 import { Player, ProfileResponse, CreateProfileRequest } from "../types/index.js";
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'https://karaokeverseserver.onrender.com/api';
 const PROFILE_STORAGE_KEY = 'karaokeverse_profile_id';
 
 /**

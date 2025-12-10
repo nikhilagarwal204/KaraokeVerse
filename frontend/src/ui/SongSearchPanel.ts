@@ -35,7 +35,7 @@ const PANEL_CONFIG = {
 };
 
 // API base URL
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'https://karaokeverseserver.onrender.com/api';
 
 /**
  * SongSearchPanel - displays song search and selection interface
