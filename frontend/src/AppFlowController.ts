@@ -6,7 +6,7 @@
  * App start → Profile check/create → Room selection → Enter room → Song selection → Sing
  */
 
-import { World, Vector3 } from "@iwsdk/core";
+import { World, Vector3, Raycaster } from "@iwsdk/core";
 
 import { RoomTheme } from "./types/index.js";
 import { SceneManager } from "./scenes/SceneManager.js";
@@ -89,6 +89,9 @@ export class AppFlowController {
     
     // Add UI elements to scene
     this.addUIToScene();
+    
+    // Set up desktop input for browser testing
+    this.setupDesktopInput();
     
     console.log('[AppFlowController] Initialized');
   }
@@ -484,7 +487,8 @@ export class AppFlowController {
 
   /**
    * Update method - called each frame
-   * Processes controller input for UI interaction
+   * Processes controller input for UI interaction (XR mode)
+   * Also handles desktop mouse/keyboard input for testing
    */
   update(delta: number): void {
     // Update loading indicator animation
@@ -494,22 +498,128 @@ export class AppFlowController {
     const xrFrame = this.world.xrFrame;
     const referenceSpace = this.world.xrReferenceSpace;
     
-    if (!xrSession || !xrFrame || !referenceSpace) return;
-    
     // Don't process UI input while loading or showing error
     if (this.loadingIndicator.getIsVisible()) return;
     
-    // Process UI controller input
-    this.uiController.processControllerInput(
-      xrFrame,
-      referenceSpace,
-      xrSession.inputSources
-    );
-    
-    // Process microphone grabbing when in room
-    if (this.currentState === 'in-room' || this.currentState === 'playing-song') {
-      this.processMicrophoneInput(xrFrame, referenceSpace, xrSession.inputSources);
+    // Process XR controller input if in XR mode
+    if (xrSession && xrFrame && referenceSpace) {
+      // Process UI controller input for 3D spatial interaction
+      // This handles raycasting from VR controllers and trigger presses
+      this.uiController.processControllerInput(
+        xrFrame,
+        referenceSpace,
+        xrSession.inputSources
+      );
+      
+      // Process microphone grabbing when in room
+      if (this.currentState === 'in-room' || this.currentState === 'playing-song') {
+        this.processMicrophoneInput(xrFrame, referenceSpace, xrSession.inputSources);
+      }
+    } else {
+      // Desktop mode - process mouse input for browser testing only
+      // In XR mode, VR controllers are used automatically
+      this.processDesktopInput();
     }
+  }
+
+  /**
+   * Process desktop mouse and keyboard input for browser testing
+   * This allows testing UI interactions without VR headset
+   */
+  private processDesktopInput(): void {
+    // This will be called from event handlers
+    // Mouse click and keyboard handling is set up in setupDesktopInput()
+  }
+
+  /**
+   * Set up desktop input handlers for browser testing
+   * Allows clicking buttons with mouse (for testing without VR headset)
+   * In XR mode, VR controllers are used automatically
+   */
+  private setupDesktopInput(): void {
+    // Get the renderer canvas
+    const canvas = this.world.renderer.domElement;
+    
+    // Mouse click handler
+    const onMouseClick = (event: MouseEvent) => {
+      if (!this.uiSystem.hasVisiblePanel()) return;
+      
+      // Get mouse position in normalized device coordinates (-1 to +1)
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      
+      // Create ray from camera through mouse position
+      const camera = this.world.camera;
+      
+      // Calculate direction: forward direction adjusted by mouse offset
+      // Camera forward is -Z, so we adjust based on mouse position
+      const forward = new Vector3(0, 0, -1);
+      forward.applyQuaternion(camera.quaternion);
+      
+      // Calculate right and up vectors
+      const right = new Vector3(1, 0, 0);
+      right.applyQuaternion(camera.quaternion);
+      const up = new Vector3(0, 1, 0);
+      up.applyQuaternion(camera.quaternion);
+      
+      // Adjust direction based on mouse position (simple approximation)
+      const fov = Math.PI / 4; // 45 degrees, adjust if needed
+      const direction = forward.clone()
+        .add(right.clone().multiplyScalar(mouseX * Math.tan(fov / 2)))
+        .add(up.clone().multiplyScalar(mouseY * Math.tan(fov / 2)))
+        .normalize();
+      
+      // Use UISystem's raycast method
+      const hoveredButton = this.uiSystem.handleRaycast(camera.position, direction);
+      
+      if (hoveredButton) {
+        console.log(`[AppFlowController] Desktop click on button: ${hoveredButton.id} (${hoveredButton.label})`);
+        hoveredButton.onClick();
+      }
+    };
+    
+    // Mouse move handler for hover feedback
+    const onMouseMove = (event: MouseEvent) => {
+      if (!this.uiSystem.hasVisiblePanel()) return;
+      
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      const mouseY = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      
+      const camera = this.world.camera;
+      
+      // Calculate direction same as click handler
+      const forward = new Vector3(0, 0, -1);
+      forward.applyQuaternion(camera.quaternion);
+      const right = new Vector3(1, 0, 0);
+      right.applyQuaternion(camera.quaternion);
+      const up = new Vector3(0, 1, 0);
+      up.applyQuaternion(camera.quaternion);
+      
+      const fov = Math.PI / 4;
+      const direction = forward.clone()
+        .add(right.clone().multiplyScalar(mouseX * Math.tan(fov / 2)))
+        .add(up.clone().multiplyScalar(mouseY * Math.tan(fov / 2)))
+        .normalize();
+      
+      // Update hover state using UISystem
+      this.uiSystem.handleRaycast(camera.position, direction);
+    };
+    
+    // Add event listeners (mouse only - no keyboard shortcuts)
+    canvas.addEventListener('click', onMouseClick);
+    canvas.addEventListener('mousemove', onMouseMove);
+    
+    // Store handlers for cleanup
+    (this as any).desktopInputHandlers = {
+      click: onMouseClick,
+      move: onMouseMove,
+      canvas
+    };
+    
+    console.log('[AppFlowController] Desktop mouse input set up for browser testing');
+    console.log('[AppFlowController] Note: In XR mode, use VR controllers to interact with buttons');
   }
 
   /**

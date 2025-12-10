@@ -147,6 +147,7 @@ export class UIController {
   /**
    * Process controller input for UI interaction
    * Requirements: 8.2, 8.3
+   * Handles XR controller raycasting and trigger input for 3D UI interaction
    */
   processControllerInput(
     xrFrame: XRFrame,
@@ -160,15 +161,23 @@ export class UIController {
     }
 
     // Process each controller
+    let controllerFound = false;
     for (const source of inputSources) {
-      // Skip non-controller sources
+      // Only process tracked-pointer controllers (VR controllers with ray)
       if (source.targetRayMode !== 'tracked-pointer') continue;
 
+      controllerFound = true;
       const targetRaySpace = source.targetRaySpace;
-      if (!targetRaySpace) continue;
+      if (!targetRaySpace) {
+        console.warn('[UIController] Controller found but no targetRaySpace');
+        continue;
+      }
 
       const pose = xrFrame.getPose(targetRaySpace, referenceSpace);
-      if (!pose) continue;
+      if (!pose) {
+        console.warn('[UIController] Controller found but no pose available');
+        continue;
+      }
 
       // Get ray origin and direction
       this.tempPosition.set(
@@ -212,15 +221,18 @@ export class UIController {
         }
       }
 
-      // Handle trigger input
+      // Handle trigger input for button clicking
       if (source.gamepad) {
         const triggerButton = source.gamepad.buttons[0];
         const isTriggerPressed = triggerButton && triggerButton.pressed;
         const wasTriggerPressed = this.triggerStates.get(source) || false;
 
-        // Trigger just pressed
+        // Trigger just pressed - click the hovered button
         if (isTriggerPressed && !wasTriggerPressed) {
-          this.uiSystem.handleTriggerPress();
+          const clicked = this.uiSystem.handleTriggerPress();
+          if (clicked) {
+            console.log('[UIController] XR Controller trigger pressed - button clicked');
+          }
         }
 
         // Trigger just released
@@ -233,6 +245,11 @@ export class UIController {
 
       // Only process first controller with UI
       break;
+    }
+    
+    // Log if no controllers found (for debugging)
+    if (!controllerFound && inputSources.length > 0) {
+      console.warn('[UIController] Controllers detected but none are tracked-pointer type');
     }
   }
 

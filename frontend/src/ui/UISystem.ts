@@ -310,7 +310,8 @@ export class UISystem {
 
     if (buttonMeshes.length === 0) return null;
 
-    const intersects = this.raycaster.intersectObjects(buttonMeshes, false);
+    // Include child objects in raycast (text labels are children of button meshes)
+    const intersects = this.raycaster.intersectObjects(buttonMeshes, true);
 
     // Reset previous hover state
     if (this.hoveredButton) {
@@ -319,16 +320,34 @@ export class UISystem {
     }
 
     if (intersects.length > 0) {
-      const hitMesh = intersects[0].object as Mesh;
-      const buttonId = hitMesh.userData.buttonId;
-
-      // Find the button
-      for (const [, panel] of this.panels) {
-        for (const button of panel.buttons) {
-          if (button.id === buttonId) {
-            this.setButtonHover(button, true);
-            this.hoveredButton = button;
-            return button;
+      const hitObject = intersects[0].object as Mesh;
+      
+      // If we hit a child object (like text), find the parent button mesh
+      let buttonMesh = hitObject;
+      let buttonId = hitObject.userData.buttonId;
+      
+      // Traverse up the parent chain to find the button mesh
+      if (!buttonId) {
+        let current = hitObject.parent;
+        while (current && !buttonId) {
+          if (current.userData && current.userData.buttonId) {
+            buttonId = current.userData.buttonId;
+            buttonMesh = current as Mesh;
+            break;
+          }
+          current = current.parent;
+        }
+      }
+      
+      if (buttonId) {
+        // Find the button
+        for (const [, panel] of this.panels) {
+          for (const button of panel.buttons) {
+            if (button.id === buttonId) {
+              this.setButtonHover(button, true);
+              this.hoveredButton = button;
+              return button;
+            }
           }
         }
       }
@@ -343,10 +362,23 @@ export class UISystem {
    */
   private setButtonHover(button: UIButton, isHovered: boolean): void {
     button.isHovered = isHovered;
+    
+    // Store original color if not already stored
+    if (!button.mesh.userData.originalColor) {
+      button.mesh.userData.originalColor = button.material.color.clone();
+    }
+    
     if (isHovered) {
-      button.material.color.set(UI_CONSTANTS.buttonHover);
+      // Brighten the button color for hover (multiply by 1.3 for visibility)
+      const originalColor = button.mesh.userData.originalColor;
+      button.material.color.setRGB(
+        Math.min(originalColor.r * 1.3, 1),
+        Math.min(originalColor.g * 1.3, 1),
+        Math.min(originalColor.b * 1.3, 1)
+      );
     } else {
-      button.material.color.set(UI_CONSTANTS.buttonDefault);
+      // Restore original color
+      button.material.color.copy(button.mesh.userData.originalColor);
     }
   }
 
@@ -356,14 +388,15 @@ export class UISystem {
    */
   handleTriggerPress(): boolean {
     if (this.hoveredButton) {
-      // Visual feedback for press
-      this.hoveredButton.material.color.set(UI_CONSTANTS.buttonActive);
+      // Visual feedback for press - darken slightly
+      const currentColor = this.hoveredButton.material.color.clone();
+      this.hoveredButton.material.color.multiplyScalar(0.8);
       this.hoveredButton.isActive = true;
       
       // Execute callback
       this.hoveredButton.onClick();
       
-      console.log(`[UISystem] Button pressed: ${this.hoveredButton.id}`);
+      console.log(`[UISystem] Button pressed: ${this.hoveredButton.id} (${this.hoveredButton.label})`);
       return true;
     }
     return false;
@@ -375,12 +408,8 @@ export class UISystem {
   handleTriggerRelease(): void {
     if (this.hoveredButton && this.hoveredButton.isActive) {
       this.hoveredButton.isActive = false;
-      // Return to hover state if still hovering
-      if (this.hoveredButton.isHovered) {
-        this.hoveredButton.material.color.set(UI_CONSTANTS.buttonHover);
-      } else {
-        this.hoveredButton.material.color.set(UI_CONSTANTS.buttonDefault);
-      }
+      // Return to hover state if still hovering, otherwise restore original
+      this.setButtonHover(this.hoveredButton, this.hoveredButton.isHovered);
     }
   }
 
